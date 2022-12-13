@@ -71,7 +71,8 @@ SOURCES += \
         src/mainwindow.cpp \
         src/main.cpp \
         src/structuredialog.cpp \
-        src/world.cpp
+        src/world.cpp \
+        src/rpc.cpp
 
 HEADERS += \
         $$CUPATH/finders.h \
@@ -105,7 +106,8 @@ HEADERS += \
         src/mainwindow.h \
         src/settings.h \
         src/structuredialog.h \
-        src/world.h
+        src/world.h \
+        src/rpc.h
 
 FORMS += \
         src/aboutdialog.ui \
@@ -166,6 +168,7 @@ with_network: {
     SOURCES += src/updater.cpp
     HEADERS += src/updater.h
 }
+QT += network
 
 
 

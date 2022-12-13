@@ -1,12 +1,14 @@
-#include "mainwindow.h"
-#include <QApplication>
-#include <QTranslator>
-#include <QFontDatabase>
-
-#include "world.h"
-
 #include "cubiomes/generator.h"
 #include "cubiomes/util.h"
+#include "mainwindow.h"
+#include "rpc.h"
+#include "world.h"
+
+#include <QApplication>
+#include <QFontDatabase>
+#include <QTranslator>
+
+#include <cstdlib>
 
 /// globals
 
@@ -65,6 +67,7 @@ int main(int argc, char *argv[])
     }
 
     MainWindow mw;
+    Rpc rpc(&mw);
     mw.show();
     int ret = app.exec();
 
