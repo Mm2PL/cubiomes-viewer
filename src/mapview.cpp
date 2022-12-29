@@ -1,20 +1,21 @@
 #include "mapview.h"
-#include "gotodialog.h"
-#include "cutil.h"
 
-#include <QPainter>
-#include <QThread>
-#include <QApplication>
-#include <QKeyEvent>
-#include <QWheelEvent>
-#include <QThreadPool>
-#include <QTime>
-#include <QSettings>
-#include <QMenu>
-#include <QAction>
-#include <QClipboard>
+#include "cutil.h"
+#include "gotodialog.h"
+#include "rpc.h"
 
 #include <math.h>
+#include <QAction>
+#include <QApplication>
+#include <QClipboard>
+#include <QKeyEvent>
+#include <QMenu>
+#include <QPainter>
+#include <QSettings>
+#include <QThread>
+#include <QThreadPool>
+#include <QTime>
+#include <QWheelEvent>
 
 bool MapOverlay::event(QEvent *e)
 {
@@ -27,8 +28,7 @@ void MapOverlay::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     QString s = bname + QString::asprintf(" [%d,%d]", pos.x, pos.z);
-    QRect r = painter.fontMetrics()
-            .boundingRect(0, 0, width(), height(), Qt::AlignRight | Qt::AlignTop, s);
+    QRect r = painter.fontMetrics().boundingRect(0, 0, width(), height(), Qt::AlignRight | Qt::AlignTop, s);
 
     painter.fillRect(r, QBrush(QColor(0, 0, 0, 128), Qt::SolidPattern));
     painter.setPen(Qt::white);
@@ -39,13 +39,17 @@ MapView::MapView(QWidget *parent)
     : QWidget(parent)
     , world()
     , decay(2.0)
-    , blocks2pix(1.0/16)
-    , focusx(),focusz()
-    , prevx(),prevz()
-    , velx(), velz()
+    , blocks2pix(1.0 / 16)
+    , focusx()
+    , focusz()
+    , prevx()
+    , prevz()
+    , velx()
+    , velz()
     , mtime()
     , holding()
-    , mstart(),mprev()
+    , mstart()
+    , mprev()
     , updatecounter()
     , layeropt(LOPT_DEFAULT_1)
     , config()
@@ -135,7 +139,7 @@ void MapView::setShow(int stype, bool v)
     update(2);
 }
 
-void MapView::setConfig(const Config& c)
+void MapView::setConfig(const Config &c)
 {
     config = c;
     settingsToWorld();
@@ -156,7 +160,7 @@ void MapView::settingsToWorld()
         world->sshow[s] = sshow[s];
     world->showBB = config.showBBoxes;
     world->gridspacing = config.gridSpacing;
-    world->memlimit = (uint64_t) config.mapCacheSize * 1024 * 1024;
+    world->memlimit = (uint64_t)config.mapCacheSize * 1024 * 1024;
     world->layeropt = layeropt;
 }
 
@@ -166,7 +170,7 @@ qreal MapView::getX()
     qreal fx = focusx;
     if (velx)
     {
-        qreal df = 1.0 - exp(-decay*dt);
+        qreal df = 1.0 - exp(-decay * dt);
         fx += velx * df;
         if (df > 0.998)
         {
@@ -183,7 +187,7 @@ qreal MapView::getZ()
     qreal fz = focusz;
     if (velz)
     {
-        qreal df = 1.0 - exp(-decay*dt);
+        qreal df = 1.0 - exp(-decay * dt);
         fz += velz * df;
         if (df > 0.998)
         {
@@ -216,16 +220,30 @@ void MapView::showContextMenu(const QPoint &pos)
     // but will not function - see keyReleaseEvent() for shortcut implementation
 
     Pos p = getActivePos();
-    QString seed   = world ? QString::asprintf("%" PRId64, (int64_t)world->wi.seed) : "";
-    QString tp     = QString::asprintf("/tp @p %d ~ %d", p.x, p.z);
+    QString seed = world ? QString::asprintf("%" PRId64, (int64_t)world->wi.seed) : "";
+    QString tp = QString::asprintf("/tp @p %d ~ %d", p.x, p.z);
     QString coords = QString::asprintf("%d %d", p.x, p.z);
-    QString chunk  = QString::asprintf("%d %d", p.x >> 4, p.z >> 4);
+    QString chunk = QString::asprintf("%d %d", p.x >> 4, p.z >> 4);
 
-    menu.addAction(tr("Copy seed:  ")+seed, this, &MapView::copySeed, QKeySequence::Copy);
-    menu.addAction(tr("Copy tp:    ")+tp, [=](){ this->copyText(tp); });
-    menu.addAction(tr("Copy block: ")+coords, [=](){ this->copyText(coords); });
-    menu.addAction(tr("Copy chunk: ")+chunk, [=](){ this->copyText(chunk); });
+    menu.addAction(tr("Copy seed:  ") + seed, this, &MapView::copySeed, QKeySequence::Copy);
+    menu.addAction(tr("Copy tp:    ") + tp, [=]() {
+        this->copyText(tp);
+    });
+    menu.addAction(tr("Copy block: ") + coords, [=]() {
+        this->copyText(coords);
+    });
+    menu.addAction(tr("Copy chunk: ") + chunk, [=]() {
+        this->copyText(chunk);
+    });
     menu.addAction(tr("Go to coordinates..."), this, &MapView::onGoto, QKeySequence(Qt::CTRL + Qt::Key_G));
+    auto *rpc = Rpc::get();
+    if (rpc)
+    {
+        auto travel = QString::asprintf("/m travel %d ~ %d", p.x, p.z);
+        menu.addAction(QString("Run ") + travel, [=]() {
+            rpc->chatCommand(travel);
+        });
+    }
     menu.exec(mapToGlobal(pos));
 }
 
@@ -265,8 +283,8 @@ void MapView::paintEvent(QPaintEvent *)
         world->draw(painter, width(), height(), fx, fz, blocks2pix);
 
         QPoint cur = mapFromGlobal(QCursor::pos());
-        qreal bx = (cur.x() -  width()/2.0) / blocks2pix + fx;
-        qreal bz = (cur.y() - height()/2.0) / blocks2pix + fz;
+        qreal bx = (cur.x() - width() / 2.0) / blocks2pix + fx;
+        qreal bz = (cur.y() - height() / 2.0) / blocks2pix + fz;
         Pos p = {(int)bx, (int)bz};
         overlay->pos = p;
         overlay->bname = world->getBiomeName(p);
@@ -280,11 +298,11 @@ void MapView::paintEvent(QPaintEvent *)
             QWidget::update();
 
             if (active)
-            {   // processing animation
+            {  // processing animation
                 qreal cyc = actelapsed.nsecsElapsed() * 1e-9;
-                qreal ang = 360 * (1.0 - (cyc - (int) cyc));
+                qreal ang = 360 * (1.0 - (cyc - (int)cyc));
                 int r = 20;
-                QRect rec = QRect(r, height() - 2*r, r, r);
+                QRect rec = QRect(r, height() - 2 * r, r, r);
 
                 QConicalGradient gradient;
                 gradient.setCenter(rec.center());
@@ -312,12 +330,16 @@ void MapView::resizeEvent(QResizeEvent *e)
 void MapView::wheelEvent(QWheelEvent *e)
 {
     qreal zoommin = 1.0 / 2048.0, zoommax = 128.0;
-    const qreal ang = e->angleDelta().y() / 8; // e->delta() / 8;
-    if (ang < 0 && blocks2pix < zoommin) return;
-    if (ang > 0 && blocks2pix > zoommax) return;
-    blocks2pix *= pow(2, ang/100);
-    if (ang < 0 && blocks2pix < zoommin) blocks2pix = zoommin;
-    if (ang > 0 && blocks2pix > zoommax) blocks2pix = zoommax;
+    const qreal ang = e->angleDelta().y() / 8;  // e->delta() / 8;
+    if (ang < 0 && blocks2pix < zoommin)
+        return;
+    if (ang > 0 && blocks2pix > zoommax)
+        return;
+    blocks2pix *= pow(2, ang / 100);
+    if (ang < 0 && blocks2pix < zoommin)
+        blocks2pix = zoommin;
+    if (ang > 0 && blocks2pix > zoommax)
+        blocks2pix = zoommax;
     update();
 }
 
@@ -361,7 +383,7 @@ void MapView::mouseMoveEvent(QMouseEvent *e)
             elapsed1.start();
         }
         mprev = e->pos();
-        update();//repaint();
+        update();  // repaint();
     }
 }
 
@@ -382,7 +404,7 @@ void MapView::mouseReleaseEvent(QMouseEvent *e)
             update();
         }
         if (!config.smoothMotion)
-        {   // i.e. without inertia
+        {  // i.e. without inertia
             velx = velz = 0;
         }
 
@@ -405,4 +427,3 @@ void MapView::keyReleaseEvent(QKeyEvent *event)
         copySeed();
     QWidget::keyReleaseEvent(event);
 }
-
