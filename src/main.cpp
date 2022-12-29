@@ -20,10 +20,11 @@ ExtGenSettings g_extgen;
 QFont *gp_font_default;
 QFont *gp_font_mono;
 
-extern "C"
-int getStructureConfig_override(int stype, int mc, StructureConfig *sconf)
+extern "C"  //
+    int
+    getStructureConfig_override(int stype, int mc, StructureConfig *sconf)
 {
-    if unlikely(mc == INT_MAX) // to check if override is enabled in cubiomes
+    if unlikely (mc == INT_MAX)  // to check if override is enabled in cubiomes
         mc = 0;
     int ok = getStructureConfig(stype, mc, sconf);
     if (ok && g_extgen.saltOverride)
@@ -48,7 +49,7 @@ int main(int argc, char *argv[])
     translator.load("en_US", ":/lang");
     app.installTranslator(&translator);
 
-    //int fontid = QFontDatabase::addApplicationFont(":/fonts/test.ttf");
+    // int fontid = QFontDatabase::addApplicationFont(":/fonts/test.ttf");
     int fontid = QFontDatabase::addApplicationFont(":/fonts/DejaVuSans.ttf");
     if (fontid >= 0)
     {
@@ -67,9 +68,10 @@ int main(int argc, char *argv[])
     }
 
     MainWindow mw;
-    Rpc rpc(&mw);
+    auto *rpc = new Rpc(&mw);
     mw.show();
     int ret = app.exec();
+    delete rpc;
 
     return ret;
 }
