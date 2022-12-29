@@ -171,4 +171,5 @@ with_network: {
 QT += network
 
 
-
+#CONFIG += sanitizer sanitize_address
+CONFIG += debug
